@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-
-import os
-from dotenv import load_dotenv
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import CharacterTextSplitter
 from langchain_community.embeddings import OllamaEmbeddings
@@ -9,6 +5,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_community.llms import Ollama
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
+import os
+from dotenv import load_dotenv # Asegúrate de que esta línea esté presente
+
 
 # ======================
 # CONFIGURACIÓN PRINCIPAL
@@ -24,7 +23,7 @@ CONFIG = {
     "k_retrievals": 2,
 }
 
-load_dotenv()
+load_dotenv() 
 
 # ===================
 # INICIALIZACIÓN
@@ -37,6 +36,8 @@ def initialize():
 
     if not os.path.exists(CONFIG["document_path"]):
         print(f"\n❌ Error: Archivo no encontrado en {CONFIG['document_path']}")
+        print("Contenido del directorio 'docs':") # Agregado para depuración
+        print(os.listdir(os.path.dirname(CONFIG["document_path"]))) # Agregado para depuración
         exit()
 
 # ===================
@@ -77,7 +78,7 @@ def setup_vectorstore(documents):
         else:
             print("🆕 Creando nueva base vectorial")
             db = FAISS.from_documents(texts, embeddings)
-            db.save_local(CONFIG["faiss_path"])
+            db.save_local(CONFIG["faiss_path"]) # Asegúrate de guardar el índice si es nuevo
         return db
     except Exception as e:
         print(f"\n❌ Error al configurar la base vectorial: {str(e)}")
@@ -93,13 +94,52 @@ def setup_rag_system(db):
         llm = Ollama(model=CONFIG["model_name"], temperature=CONFIG["temperature"], top_p=CONFIG["top_p"])
         retriever = db.as_retriever(search_kwargs={"k": CONFIG["k_retrievals"]})
         prompt_template = """
-        Usando la información de los fragmentos, respondé a la pregunta de forma breve y precisa.
-        Fragmentos relevantes:
+        Responde de forma técnica y sin artículos definidos (ej: evita 'la', 'el', 'los'). 
+        Usa SOLO la información de estos fragmentos:
         {context}
         Pregunta: {question}
-        Respuesta literal:"""
+       Respuesta (sé conciso y usa nombres propios directamente):"""
         prompt = ChatPromptTemplate.from_template(prompt_template)
         return {"context": retriever, "question": RunnablePassthrough()} | prompt | llm
     except Exception as e:
         print(f"\n❌ Error al configurar RAG: {str(e)}")
         exit()
+
+# ===================
+# INTERFAZ DE USUARIO
+# ===================
+def run_interactive(rag_chain):
+    """Ejecuta la interfaz interactiva"""
+    print("\n" + "=" * 50)
+    print("Sistema listo! Escribí 'salir' para terminar")
+    print("Comprobá la velocidad. Si es lenta, probá un modelo de Ollama más pequeño.")
+    print("=" * 50 + "\n")
+
+    while True:
+        try:
+            question = input("🔵 Tu pregunta: ").strip()
+            if question.lower() in ['salir', 'exit', 'quit', 'q']:
+                break
+
+            if not question:
+                print("⚠️ Por favor ingresá una pregunta válida")
+                continue
+
+            response = rag_chain.invoke(question)
+
+            print("\n" + "=" * 80)
+            print("🟢 Respuesta:")
+            print(response)
+            print("=" * 80 + "\n")
+        except Exception as e:
+            print(f"\n❌ Error en la interacción: {str(e)}")
+
+# ===================
+# EJECUCIÓN PRINCIPAL
+# ===================
+if __name__ == "__main__":
+    initialize()
+    documents = process_documents()
+    db = setup_vectorstore(documents)
+    rag_chain = setup_rag_system(db)
+    run_interactive(rag_chain) 

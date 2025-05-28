@@ -12,5 +12,5 @@ Instrucciones:
 - Respondé solo sobre temas del municipio
 - Para consultas fuera de tema: "Consultá en Cerretti 516"
 """
-PARAMETER temperature 0.2
+PARAMETER temperature 0.1
 PARAMETER num_ctx 2048
